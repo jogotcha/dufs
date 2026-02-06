@@ -779,6 +779,14 @@ impl Server {
         } else {
             format!("{inner_path}/")
         };
+        let search = if self.args.allow_search {
+            query_params
+                .get("q")
+                .map(|v| v.to_lowercase())
+                .filter(|v| !v.is_empty())
+        } else {
+            None
+        };
 
         if !inner_path.is_empty() {
             for (index, entry) in entries.iter().enumerate() {
@@ -890,6 +898,61 @@ impl Server {
 
         if !inner_path.is_empty() && exact_entry.is_none() && !has_prefix {
             status_not_found(res);
+            return Ok(());
+        }
+
+        if let Some(search) = search {
+            let mut items: HashMap<String, PathItem> = HashMap::new();
+            for entry in entries.iter() {
+                let raw_name = match entry.filename().as_str() {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let name = match normalize_zip_entry_name(raw_name) {
+                    Some(v) => v,
+                    None => continue,
+                };
+                if !name.starts_with(&prefix) {
+                    continue;
+                }
+                let rest = &name[prefix.len()..];
+                if rest.is_empty() {
+                    continue;
+                }
+                if !rest.to_lowercase().contains(&search) {
+                    continue;
+                }
+                let entry_mtime = zip_datetime_to_timestamp(entry.last_modification_date());
+                let is_dir = entry.dir().unwrap_or(false) || name.ends_with('/');
+                let entry_name = if is_dir {
+                    rest.trim_end_matches('/').to_string()
+                } else {
+                    rest.to_string()
+                };
+                let item = PathItem {
+                    path_type: if is_dir { PathType::Dir } else { PathType::File },
+                    name: entry_name.clone(),
+                    mtime: entry_mtime,
+                    size: if is_dir { 0 } else { entry.uncompressed_size() },
+                };
+                items.entry(entry_name).or_insert(item);
+            }
+
+            let href = if inner_path.is_empty() {
+                format!("/{}", zip_browse.zip_relative_path)
+            } else {
+                format!("/{}/{}", zip_browse.zip_relative_path, inner_path)
+            };
+            let zip_file = try_get_file_name(zip_path)?.to_string();
+            self.send_zip_index(
+                href,
+                zip_file,
+                items.into_values().collect(),
+                query_params,
+                head_only,
+                user,
+                res,
+            )?;
             return Ok(());
         }
 
@@ -1666,7 +1729,7 @@ impl Server {
             uri_prefix: self.args.uri_prefix.clone(),
             allow_upload: false,
             allow_delete: false,
-            allow_search: false,
+            allow_search: self.args.allow_search,
             allow_archive: false,
             allow_zip_browse: false,
             zip_extensions: self.args.zip_extensions.clone(),
