@@ -4,7 +4,7 @@ mod utils;
 
 use assert_fs::TempDir;
 use digest_auth_util::send_with_digest_auth;
-use fixtures::{port, tmpdir, wait_for_port, Error};
+use fixtures::{Error, port, tmpdir, wait_for_port};
 use rstest::rstest;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};

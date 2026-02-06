@@ -1,8 +1,8 @@
 mod fixtures;
 mod utils;
 
-use async_zip::{tokio::write::ZipFileWriter, Compression, ZipEntryBuilder};
-use fixtures::{server, Error, TestServer};
+use async_zip::{Compression, ZipEntryBuilder, tokio::write::ZipFileWriter};
+use fixtures::{Error, TestServer, server};
 use rstest::rstest;
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -28,7 +28,10 @@ fn zip_browse_lists_entries(
     #[with(&["--allow-zip-browse"])] server: TestServer,
 ) -> Result<(), Error> {
     let zip_path = server.path().join("archive.zip");
-    write_zip(&zip_path, vec![("folder/note.txt", b"note"), ("root.txt", b"root")])?;
+    write_zip(
+        &zip_path,
+        vec![("folder/note.txt", b"note"), ("root.txt", b"root")],
+    )?;
 
     assert!(zip_path.exists());
 
@@ -42,7 +45,11 @@ fn zip_browse_lists_entries(
         .and_then(|v| v.as_array())
         .unwrap()
         .iter()
-        .filter_map(|v| v.get("name").and_then(|n| n.as_str()).map(|n| n.to_string()))
+        .filter_map(|v| {
+            v.get("name")
+                .and_then(|n| n.as_str())
+                .map(|n| n.to_string())
+        })
         .collect();
 
     assert!(names.contains(&"folder".to_string()));
@@ -105,7 +112,11 @@ fn zip_extensions_allow_custom_formats(
         .and_then(|v| v.as_array())
         .unwrap()
         .iter()
-        .filter_map(|v| v.get("name").and_then(|n| n.as_str()).map(|n| n.to_string()))
+        .filter_map(|v| {
+            v.get("name")
+                .and_then(|n| n.as_str())
+                .map(|n| n.to_string())
+        })
         .collect();
 
     assert!(names.contains(&"folder".to_string()));

@@ -1,8 +1,8 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use async_zip::Compression;
 use clap::builder::{PossibleValue, PossibleValuesParser};
-use clap::{value_parser, Arg, ArgAction, ArgMatches, Command, ValueEnum};
-use clap_complete::{generate, Generator, Shell};
+use clap::{Arg, ArgAction, ArgMatches, Command, ValueEnum, value_parser};
+use clap_complete::{Generator, Shell, generate};
 use serde::{Deserialize, Deserializer};
 use smart_default::SmartDefault;
 use std::env;
@@ -273,8 +273,13 @@ pub fn build_cli() -> Command {
     app
 }
 
-pub fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
-    generate(gen, cmd, cmd.get_name().to_string(), &mut std::io::stdout());
+pub fn print_completions<G: Generator>(generator: G, cmd: &mut Command) {
+    generate(
+        generator,
+        cmd,
+        cmd.get_name().to_string(),
+        &mut std::io::stdout(),
+    );
 }
 
 #[derive(Debug, Deserialize, SmartDefault, PartialEq)]

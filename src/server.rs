@@ -1,34 +1,37 @@
 #![allow(clippy::too_many_arguments)]
 
-use crate::auth::{www_authenticate, AccessPaths, AccessPerm};
-use crate::http_utils::{body_full, IncomingStream, LengthLimitedStream};
+use crate::Args;
+use crate::auth::{AccessPaths, AccessPerm, www_authenticate};
+use crate::http_utils::{IncomingStream, LengthLimitedStream, body_full};
 use crate::noscript::{detect_noscript, generate_noscript_html};
 use crate::utils::{
     decode_uri, encode_uri, get_file_mtime_and_mode, get_file_name, glob, parse_range,
     try_get_file_name,
 };
-use crate::Args;
 
-use anyhow::{anyhow, Result};
-use async_zip::{base::read::seek::ZipFileReader, tokio::write::ZipFileWriter, Compression, ZipDateTime, ZipEntryBuilder};
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use anyhow::{Result, anyhow};
+use async_zip::{
+    Compression, ZipDateTime, ZipEntryBuilder, base::read::seek::ZipFileReader,
+    tokio::write::ZipFileWriter,
+};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bytes::Bytes;
 use chrono::{LocalResult, TimeZone, Utc};
-use futures_util::{pin_mut, TryStreamExt};
+use futures_util::{TryStreamExt, pin_mut};
 use headers::{
     AcceptRanges, AccessControlAllowCredentials, AccessControlAllowOrigin, CacheControl,
     ContentLength, ContentType, ETag, HeaderMap, HeaderMapExt, IfMatch, IfModifiedSince,
     IfNoneMatch, IfRange, IfUnmodifiedSince, LastModified, Range,
 };
-use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
+use http_body_util::{BodyExt, StreamBody, combinators::BoxBody};
 use hyper::body::Frame;
 use hyper::{
+    Method, StatusCode, Uri,
     body::Incoming,
     header::{
-        HeaderValue, AUTHORIZATION, CONNECTION, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE,
-        CONTENT_TYPE, RANGE,
+        AUTHORIZATION, CONNECTION, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE,
+        CONTENT_TYPE, HeaderValue, RANGE,
     },
-    Method, StatusCode, Uri,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -38,15 +41,17 @@ use std::collections::{HashMap, HashSet};
 use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
-use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
-use std::sync::atomic::{self, AtomicBool};
+use std::path::{Component, MAIN_SEPARATOR, Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicBool};
 use std::time::SystemTime;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite, BufReader};
 use tokio::{fs, io};
 
-use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt, TokioAsyncReadCompatExt};
+use tokio_util::compat::{
+    FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt, TokioAsyncReadCompatExt,
+};
 use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
@@ -834,16 +839,19 @@ impl Server {
             if has_query_flag(query_params, "view") || has_query_flag(query_params, "edit") {
                 let entry = &entries[index];
                 let mut editable = false;
-                if entry.uncompressed_size() <= EDITABLE_TEXT_MAX_SIZE {
-                    if let Ok(entry_reader) = zip.reader_without_entry(index).await {
-                        let entry_reader = entry_reader.compat();
-                        let mut buffer: Vec<u8> = vec![];
-                        let mut limited_reader = entry_reader.take(1024);
-                        limited_reader.read_to_end(&mut buffer).await?;
-                        editable = content_inspector::inspect(&buffer).is_text();
-                    }
+                if entry.uncompressed_size() <= EDITABLE_TEXT_MAX_SIZE
+                    && let Ok(entry_reader) = zip.reader_without_entry(index).await
+                {
+                    let entry_reader = entry_reader.compat();
+                    let mut buffer: Vec<u8> = vec![];
+                    let mut limited_reader = entry_reader.take(1024);
+                    limited_reader.read_to_end(&mut buffer).await?;
+                    editable = content_inspector::inspect(&buffer).is_text();
                 }
-                let href = format!("/{}", normalize_path(format!("{}/{}", zip_browse.zip_relative_path, inner_path)));
+                let href = format!(
+                    "/{}",
+                    normalize_path(format!("{}/{}", zip_browse.zip_relative_path, inner_path))
+                );
                 let kind = if has_query_flag(query_params, "edit") {
                     DataKind::Edit
                 } else {
@@ -918,7 +926,11 @@ impl Server {
                     rest.to_string()
                 };
                 let item = PathItem {
-                    path_type: if is_dir { PathType::Dir } else { PathType::File },
+                    path_type: if is_dir {
+                        PathType::Dir
+                    } else {
+                        PathType::File
+                    },
                     name: entry_name.clone(),
                     mtime: entry_mtime,
                     size: if is_dir { 0 } else { entry.uncompressed_size() },
@@ -1177,29 +1189,29 @@ impl Server {
         let size = meta.len();
         let mut use_range = true;
         if let Some((etag, last_modified)) = extract_cache_headers(&meta) {
-            if let Some(if_unmodified_since) = headers.typed_get::<IfUnmodifiedSince>() {
-                if !if_unmodified_since.precondition_passes(last_modified.into()) {
-                    *res.status_mut() = StatusCode::PRECONDITION_FAILED;
-                    return Ok(());
-                }
+            if let Some(if_unmodified_since) = headers.typed_get::<IfUnmodifiedSince>()
+                && !if_unmodified_since.precondition_passes(last_modified.into())
+            {
+                *res.status_mut() = StatusCode::PRECONDITION_FAILED;
+                return Ok(());
             }
-            if let Some(if_match) = headers.typed_get::<IfMatch>() {
-                if !if_match.precondition_passes(&etag) {
-                    *res.status_mut() = StatusCode::PRECONDITION_FAILED;
-                    return Ok(());
-                }
+            if let Some(if_match) = headers.typed_get::<IfMatch>()
+                && !if_match.precondition_passes(&etag)
+            {
+                *res.status_mut() = StatusCode::PRECONDITION_FAILED;
+                return Ok(());
             }
-            if let Some(if_modified_since) = headers.typed_get::<IfModifiedSince>() {
-                if !if_modified_since.is_modified(last_modified.into()) {
-                    *res.status_mut() = StatusCode::NOT_MODIFIED;
-                    return Ok(());
-                }
+            if let Some(if_modified_since) = headers.typed_get::<IfModifiedSince>()
+                && !if_modified_since.is_modified(last_modified.into())
+            {
+                *res.status_mut() = StatusCode::NOT_MODIFIED;
+                return Ok(());
             }
-            if let Some(if_none_match) = headers.typed_get::<IfNoneMatch>() {
-                if !if_none_match.precondition_passes(&etag) {
-                    *res.status_mut() = StatusCode::NOT_MODIFIED;
-                    return Ok(());
-                }
+            if let Some(if_none_match) = headers.typed_get::<IfNoneMatch>()
+                && !if_none_match.precondition_passes(&etag)
+            {
+                *res.status_mut() = StatusCode::NOT_MODIFIED;
+                return Ok(());
             }
 
             res.headers_mut()
@@ -2274,10 +2286,10 @@ fn zip_datetime_to_timestamp(dt: &ZipDateTime) -> u64 {
 }
 
 async fn ensure_path_parent(path: &Path) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        if fs::symlink_metadata(parent).await.is_err() {
-            fs::create_dir_all(&parent).await?;
-        }
+    if let Some(parent) = path.parent()
+        && fs::symlink_metadata(parent).await.is_err()
+    {
+        fs::create_dir_all(&parent).await?;
     }
     Ok(())
 }
@@ -2417,10 +2429,8 @@ fn set_content_disposition(res: &mut Response, inline: bool, filename: &str) -> 
 
 fn is_hidden(hidden: &[String], file_name: &str, is_dir: bool) -> bool {
     hidden.iter().any(|v| {
-        if is_dir {
-            if let Some(x) = v.strip_suffix('/') {
-                return glob(x, file_name);
-            }
+        if is_dir && let Some(x) = v.strip_suffix('/') {
+            return glob(x, file_name);
         }
         glob(v, file_name)
     })

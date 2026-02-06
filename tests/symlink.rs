@@ -2,7 +2,7 @@ mod fixtures;
 mod utils;
 
 use assert_fs::fixture::TempDir;
-use fixtures::{server, tmpdir, Error, TestServer};
+use fixtures::{Error, TestServer, server, tmpdir};
 use rstest::rstest;
 
 #[cfg(unix)]

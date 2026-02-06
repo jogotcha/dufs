@@ -1,8 +1,7 @@
 [package]
 name = "dufs"
 version = "0.45.0"
-edition = "2021"
-authors = ["sigoden <sigoden@gmail.com>"]
+edition = "2024"
 description = "Dufs is a distinctive utility file server"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/sigoden/dufs"

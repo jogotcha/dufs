@@ -21,6 +21,7 @@
 - Build: `cargo build` (TLS is enabled by default).
 - Disable TLS feature: `cargo build --no-default-features` (TLS is the only default feature; see [Cargo.toml](Cargo.toml)).
 - Tests are mostly integration tests under tests/ (run with `cargo test`).
+- After changes, regularly run `cargo test` , `cargo fmt --all --check` and `cargo clippy --all --all-targets` and fix any failures.
 
 ## Commit conventions
 - Use Conventional Commits prefixes: `feat:`, `fix:`, `chore:`.

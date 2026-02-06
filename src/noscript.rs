@@ -1,5 +1,5 @@
 use crate::{
-    server::{IndexData, PathItem, PathType, MAX_SUBPATHS_COUNT},
+    server::{IndexData, MAX_SUBPATHS_COUNT, PathItem, PathType},
     utils::encode_uri,
 };
 

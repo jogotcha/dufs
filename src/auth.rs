@@ -1,10 +1,10 @@
 use crate::{args::Args, server::Response, utils::unix_now};
 
-use anyhow::{anyhow, bail, Result};
-use base64::{engine::general_purpose::STANDARD, Engine as _};
-use ed25519_dalek::{ed25519::signature::SignerMut, Signature, SigningKey};
+use anyhow::{Result, anyhow, bail};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use ed25519_dalek::{Signature, SigningKey, ed25519::signature::SignerMut};
 use headers::HeaderValue;
-use hyper::{header::WWW_AUTHENTICATE, Method};
+use hyper::{Method, header::WWW_AUTHENTICATE};
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use md5::Context;
@@ -118,23 +118,22 @@ impl AccessControl {
             return (None, Some(AccessPaths::new(AccessPerm::ReadWrite)));
         }
 
-        if method == Method::GET {
-            if let Some(token) = token {
-                if let Ok((user, ap)) = self.verify_token(token, path) {
-                    return (Some(user), ap.guard(path, method));
-                }
-            }
+        if method == Method::GET
+            && let Some(token) = token
+            && let Ok((user, ap)) = self.verify_token(token, path)
+        {
+            return (Some(user), ap.guard(path, method));
         }
 
         if let Some(authorization) = authorization {
-            if let Some(user) = get_auth_user(authorization) {
-                if let Some((pass, ap)) = self.users.get(&user) {
-                    if method == Method::OPTIONS {
-                        return (Some(user), Some(AccessPaths::new(AccessPerm::ReadOnly)));
-                    }
-                    if check_auth(authorization, method.as_str(), &user, pass).is_some() {
-                        return (Some(user), ap.guard(path, method));
-                    }
+            if let Some(user) = get_auth_user(authorization)
+                && let Some((pass, ap)) = self.users.get(&user)
+            {
+                if method == Method::OPTIONS {
+                    return (Some(user), Some(AccessPaths::new(AccessPerm::ReadOnly)));
+                }
+                if check_auth(authorization, method.as_str(), &user, pass).is_some() {
+                    return (Some(user), ap.guard(path, method));
                 }
             }
 
@@ -440,28 +439,28 @@ pub fn check_auth(
             }
             let ha = format!("{:x}", ha.finalize());
             let mut correct_response = None;
-            if let Some(qop) = digest_map.get(b"qop".as_ref()) {
-                if qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref() {
-                    correct_response = Some({
-                        let mut c = Context::new();
-                        c.consume(&auth_pass);
-                        c.consume(b":");
-                        c.consume(nonce);
-                        c.consume(b":");
-                        if let Some(nc) = digest_map.get(b"nc".as_ref()) {
-                            c.consume(nc);
-                        }
-                        c.consume(b":");
-                        if let Some(cnonce) = digest_map.get(b"cnonce".as_ref()) {
-                            c.consume(cnonce);
-                        }
-                        c.consume(b":");
-                        c.consume(qop);
-                        c.consume(b":");
-                        c.consume(&*ha);
-                        format!("{:x}", c.finalize())
-                    });
-                }
+            if let Some(qop) = digest_map.get(b"qop".as_ref())
+                && (qop == &b"auth".as_ref() || qop == &b"auth-int".as_ref())
+            {
+                correct_response = Some({
+                    let mut c = Context::new();
+                    c.consume(&auth_pass);
+                    c.consume(b":");
+                    c.consume(nonce);
+                    c.consume(b":");
+                    if let Some(nc) = digest_map.get(b"nc".as_ref()) {
+                        c.consume(nc);
+                    }
+                    c.consume(b":");
+                    if let Some(cnonce) = digest_map.get(b"cnonce".as_ref()) {
+                        c.consume(cnonce);
+                    }
+                    c.consume(b":");
+                    c.consume(qop);
+                    c.consume(b":");
+                    c.consume(&*ha);
+                    format!("{:x}", c.finalize())
+                });
             }
             let correct_response = match correct_response {
                 Some(r) => r,

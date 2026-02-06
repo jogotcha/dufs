@@ -1,7 +1,7 @@
 mod fixtures;
 mod utils;
 
-use fixtures::{server, Error, TestServer, BIN_FILE, DIR_NO_FOUND, DIR_NO_INDEX, FILES};
+use fixtures::{BIN_FILE, DIR_NO_FOUND, DIR_NO_INDEX, Error, FILES, TestServer, server};
 use rstest::rstest;
 
 #[rstest]

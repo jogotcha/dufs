@@ -1,6 +1,6 @@
 mod fixtures;
 
-use fixtures::{port, server, tmpdir, wait_for_port, Error, TestServer};
+use fixtures::{Error, TestServer, port, server, tmpdir, wait_for_port};
 
 use assert_cmd::prelude::*;
 use assert_fs::fixture::TempDir;

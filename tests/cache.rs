@@ -2,12 +2,12 @@ mod fixtures;
 mod utils;
 
 use chrono::{DateTime, Duration};
-use fixtures::{server, Error, TestServer};
+use fixtures::{Error, TestServer, server};
+use reqwest::StatusCode;
 use reqwest::header::{
-    HeaderName, ETAG, IF_MATCH, IF_MODIFIED_SINCE, IF_NONE_MATCH, IF_UNMODIFIED_SINCE,
+    ETAG, HeaderName, IF_MATCH, IF_MODIFIED_SINCE, IF_NONE_MATCH, IF_UNMODIFIED_SINCE,
     LAST_MODIFIED,
 };
-use reqwest::StatusCode;
 use rstest::rstest;
 
 #[rstest]

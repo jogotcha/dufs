@@ -1,7 +1,7 @@
 /// Refs https://github.dev/maoertel/diqwest/blob/main/src/blocking.rs
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use digest_auth::{AuthContext, AuthorizationHeader, HttpMethod};
-use hyper::{header::AUTHORIZATION, HeaderMap, StatusCode};
+use hyper::{HeaderMap, StatusCode, header::AUTHORIZATION};
 use reqwest::blocking::{RequestBuilder, Response};
 use url::Position;
 

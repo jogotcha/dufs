@@ -1,7 +1,7 @@
 mod fixtures;
 mod utils;
 
-use fixtures::{server, Error, TestServer, BIN_FILE};
+use fixtures::{BIN_FILE, Error, TestServer, server};
 use rstest::rstest;
 use serde_json::Value;
 use utils::retrieve_edit_file;

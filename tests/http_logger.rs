@@ -3,7 +3,7 @@ mod fixtures;
 mod utils;
 
 use digest_auth_util::send_with_digest_auth;
-use fixtures::{port, tmpdir, wait_for_port, Error};
+use fixtures::{Error, port, tmpdir, wait_for_port};
 
 use assert_fs::fixture::TempDir;
 use rstest::rstest;

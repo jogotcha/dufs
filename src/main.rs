@@ -10,31 +10,31 @@ mod utils;
 #[macro_use]
 extern crate log;
 
-use crate::args::{build_cli, print_completions, Args};
+use crate::args::{Args, build_cli, print_completions};
 use crate::server::Server;
 #[cfg(feature = "tls")]
 use crate::utils::{load_certs, load_private_key};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use args::BindAddr;
 use clap_complete::Shell;
 use futures_util::future::join_all;
 
-use hyper::{body::Incoming, service::service_fn, Request};
+use hyper::{Request, body::Incoming, service::service_fn};
 use hyper_util::{
     rt::{TokioExecutor, TokioIo},
     server::conn::auto::Builder,
 };
 use std::net::{IpAddr, SocketAddr, TcpListener as StdTcpListener};
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
 use std::time::Duration;
 use tokio::time::timeout;
 use tokio::{net::TcpListener, task::JoinHandle};
 #[cfg(feature = "tls")]
-use tokio_rustls::{rustls::ServerConfig, TlsAcceptor};
+use tokio_rustls::{TlsAcceptor, rustls::ServerConfig};
 
 #[tokio::main]
 async fn main() -> Result<()> {

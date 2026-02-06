@@ -3,7 +3,7 @@
 mod fixtures;
 mod utils;
 
-use fixtures::{server, Error, TestServer};
+use fixtures::{Error, TestServer, server};
 use rstest::rstest;
 
 #[rstest]

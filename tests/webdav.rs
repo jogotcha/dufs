@@ -1,7 +1,7 @@
 mod fixtures;
 mod utils;
 
-use fixtures::{server, Error, TestServer, FILES};
+use fixtures::{Error, FILES, TestServer, server};
 use rstest::rstest;
 use xml::escape::escape_str_pcdata;
 

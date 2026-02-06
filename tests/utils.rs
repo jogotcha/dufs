@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use indexmap::IndexSet;
 use serde_json::Value;
 
@@ -28,7 +28,7 @@ macro_rules! fetch {
 #[allow(dead_code)]
 pub fn retrieve_index_paths(content: &str) -> IndexSet<String> {
     let value = retrieve_json(content).unwrap();
-    let paths = value
+    value
         .get("paths")
         .unwrap()
         .as_array()
@@ -43,8 +43,7 @@ pub fn retrieve_index_paths(content: &str) -> IndexSet<String> {
                 Some(name.to_owned())
             }
         })
-        .collect();
-    paths
+        .collect()
 }
 
 #[allow(dead_code)]

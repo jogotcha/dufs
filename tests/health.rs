@@ -1,7 +1,7 @@
 mod fixtures;
 mod utils;
 
-use fixtures::{server, Error, TestServer};
+use fixtures::{Error, TestServer, server};
 use rstest::rstest;
 
 const HEALTH_CHECK_PATH: &str = "__dufs__/health";

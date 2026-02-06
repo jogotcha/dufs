@@ -3,7 +3,7 @@ mod fixtures;
 mod utils;
 
 use digest_auth_util::send_with_digest_auth;
-use fixtures::{server, Error, TestServer};
+use fixtures::{Error, TestServer, server};
 use indexmap::IndexSet;
 use rstest::rstest;
 

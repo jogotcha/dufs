@@ -1,7 +1,7 @@
 mod fixtures;
 mod utils;
 
-use fixtures::{server, Error, TestServer};
+use fixtures::{Error, TestServer, server};
 use predicates::str::contains;
 use reqwest::blocking::ClientBuilder;
 use rstest::rstest;

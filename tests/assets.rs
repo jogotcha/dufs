@@ -2,7 +2,7 @@ mod fixtures;
 mod utils;
 
 use assert_fs::fixture::TempDir;
-use fixtures::{port, server, tmpdir, wait_for_port, Error, TestServer, DIR_ASSETS};
+use fixtures::{DIR_ASSETS, Error, TestServer, port, server, tmpdir, wait_for_port};
 use rstest::rstest;
 use std::process::{Command, Stdio};
 
