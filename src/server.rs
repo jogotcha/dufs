@@ -818,19 +818,19 @@ impl Server {
                     return Ok(());
                 }
                 let mut hasher = Sha256::new();
-                if let Ok(entry_reader) = zip.reader_without_entry(index).await {
-                    let mut entry_reader = entry_reader.compat();
-                    let mut buffer = [0u8; 8192];
-                    loop {
-                        let bytes_read = entry_reader.read(&mut buffer).await?;
-                        if bytes_read == 0 {
-                            break;
-                        }
-                        hasher.update(&buffer[..bytes_read]);
+                let entry_reader = zip.reader_without_entry(index).await?;
+                let mut entry_reader = entry_reader.compat();
+                let mut buffer = [0u8; 8192];
+                loop {
+                    let bytes_read = entry_reader.read(&mut buffer).await?;
+                    if bytes_read == 0 {
+                        break;
                     }
+                    hasher.update(&buffer[..bytes_read]);
                 }
                 let output = format!("{:x}", hasher.finalize());
                 res.headers_mut()
+                    .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
                     .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
                 res.headers_mut()
                     .typed_insert(ContentLength(output.len() as u64));
