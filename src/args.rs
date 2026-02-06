@@ -149,6 +149,24 @@ pub fn build_cli() -> Command {
                 .help("Allow download folders as archive file"),
         )
         .arg(
+            Arg::new("zip-extensions")
+                .env("DUFS_ZIP_EXTENSIONS")
+				.hide_env(true)
+                .long("zip-extensions")
+                .action(ArgAction::Append)
+                .value_delimiter(',')
+                .help("Extensions treated as zip archives [default: zip]")
+                .value_name("exts"),
+        )
+        .arg(
+            Arg::new("allow-zip-browse")
+                .env("DUFS_ALLOW_ZIP_BROWSE")
+				.hide_env(true)
+                .long("allow-zip-browse")
+                .action(ArgAction::SetTrue)
+                .help("Allow browsing into .zip files"),
+        )
+        .arg(
             Arg::new("allow-hash")
                 .env("DUFS_ALLOW_HASH")
                 .hide_env(true)
@@ -289,6 +307,10 @@ pub struct Args {
     pub allow_search: bool,
     pub allow_symlink: bool,
     pub allow_archive: bool,
+    #[serde(default = "default_zip_extensions")]
+    #[serde(deserialize_with = "deserialize_string_or_vec")]
+    pub zip_extensions: Vec<String>,
+    pub allow_zip_browse: bool,
     pub allow_hash: bool,
     pub render_index: bool,
     pub render_spa: bool,
@@ -389,6 +411,14 @@ impl Args {
         }
         if !args.allow_archive {
             args.allow_archive = allow_all || matches.get_flag("allow-archive");
+        }
+        if let Some(exts) = matches.get_many::<String>("zip-extensions") {
+            args.zip_extensions = exts
+                .flat_map(|v| v.split(',').map(|v| v.to_string()).collect::<Vec<String>>())
+                .collect();
+        }
+        if !args.allow_zip_browse {
+            args.allow_zip_browse = allow_all || matches.get_flag("allow-zip-browse");
         }
         if !args.render_index {
             args.render_index = matches.get_flag("render-index");
@@ -630,6 +660,10 @@ fn default_addrs() -> Vec<BindAddr> {
 
 fn default_port() -> u16 {
     5000
+}
+
+fn default_zip_extensions() -> Vec<String> {
+    vec!["zip".to_string()]
 }
 
 #[cfg(test)]
