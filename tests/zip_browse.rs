@@ -62,7 +62,9 @@ fn zip_view_shows_editor_ui(
     assert_eq!(resp.status(), 200);
     let body = resp.text()?;
     let editable = utils::retrieve_edit_file(&body).unwrap_or(false);
+    let kind = utils::retrieve_kind(&body);
     assert!(editable);
+    assert_eq!(kind.as_deref(), Some("View"));
     Ok(())
 }
 
@@ -151,6 +153,8 @@ fn zip_edit_shows_editor_ui(
     assert_eq!(resp.status(), 200);
     let body = resp.text()?;
     let editable = utils::retrieve_edit_file(&body).unwrap_or(false);
+    let kind = utils::retrieve_kind(&body);
     assert!(editable);
+    assert_eq!(kind.as_deref(), Some("Edit"));
     Ok(())
 }

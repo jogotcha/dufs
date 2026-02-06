@@ -23,7 +23,7 @@
  * @property {boolean} dir_exists
  * @property {string} editable
  * @property {boolean} zip_browsing
- * @property {string} zip_file
+ * @property {string|null} zip_file
  */
 
 var DUFS_MAX_UPLOADINGS = 1;
@@ -219,6 +219,7 @@ function setupThemeToggle() {
 
   const updateThemeIcon = () => {
     const theme = document.documentElement.dataset.theme || getPreferredTheme();
+    $toggle.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
     const $icon = $toggle.querySelector(".icon-theme");
     if (!$icon) return;
     if (theme === "dark") {

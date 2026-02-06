@@ -247,11 +247,16 @@ impl Server {
         }
 
         if has_query_flag(&query_params, "tokengen") {
-            self.handle_tokengen(&relative_path, user, &mut res).await?;
+            self.handle_tokengen(auth_path, user, &mut res).await?;
             return Ok(res);
         }
 
         let head_only = method == Method::HEAD;
+
+        if zip_browse.is_some() && method != Method::GET && method != Method::HEAD {
+            *res.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
+            return Ok(res);
+        }
 
         if self.args.path_is_file {
             if self
@@ -2127,14 +2132,26 @@ impl PathItem {
 
     pub fn sort_by_mtime(&self, other: &Self) -> Ordering {
         match self.path_type.cmp(&other.path_type) {
-            Ordering::Equal => self.mtime.cmp(&other.mtime),
+            Ordering::Equal => match self.mtime.cmp(&other.mtime) {
+                Ordering::Equal => alphanumeric_sort::compare_str(
+                    self.name.to_lowercase(),
+                    other.name.to_lowercase(),
+                ),
+                v => v,
+            },
             v => v,
         }
     }
 
     pub fn sort_by_size(&self, other: &Self) -> Ordering {
         match self.path_type.cmp(&other.path_type) {
-            Ordering::Equal => self.size.cmp(&other.size),
+            Ordering::Equal => match self.size.cmp(&other.size) {
+                Ordering::Equal => alphanumeric_sort::compare_str(
+                    self.name.to_lowercase(),
+                    other.name.to_lowercase(),
+                ),
+                v => v,
+            },
             v => v,
         }
     }

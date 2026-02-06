@@ -163,6 +163,7 @@ body {
 
 .uploaders-table td,
 .paths-table td {
+  color: #24292e;
   white-space: nowrap;
 }
 
@@ -373,6 +374,11 @@ body {
 
 :root[data-theme="dark"] .uploaders-table th,
 :root[data-theme="dark"] .paths-table th {
+  color: #ddd;
+}
+
+:root[data-theme="dark"] .uploaders-table td,
+:root[data-theme="dark"] .paths-table td {
   color: #ddd;
 }
 
