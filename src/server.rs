@@ -831,7 +831,6 @@ impl Server {
                 let output = format!("{:x}", hasher.finalize());
                 res.headers_mut()
                     .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
-                    .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
                 res.headers_mut()
                     .typed_insert(ContentLength(output.len() as u64));
                 if head_only {

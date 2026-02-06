@@ -109,3 +109,48 @@ fn zip_extensions_allow_custom_formats(
     assert!(names.contains(&"folder".to_string()));
     Ok(())
 }
+
+#[rstest]
+fn zip_search_filters_entries(
+    #[with(&["--allow-zip-browse", "--allow-search"])] server: TestServer,
+) -> Result<(), Error> {
+    let zip_path = server.path().join("archive.zip");
+    write_zip(
+        &zip_path,
+        vec![
+            ("folder/note.txt", b"note"),
+            ("folder/readme.md", b"readme"),
+            ("root.txt", b"root"),
+            ("data.json", b"{}"),
+        ],
+    )?;
+
+    let url = format!("{}archive.zip/?q=note", server.url());
+    let resp = reqwest::blocking::get(url)?;
+    assert_eq!(resp.status(), 200);
+    let body = resp.text()?;
+    let paths = utils::retrieve_index_paths(&body);
+
+    // Search should find "note.txt" but not "readme.md", "root.txt", or "data.json"
+    assert!(paths.iter().any(|p| p.contains("note.txt")));
+    assert!(!paths.iter().any(|p| p.contains("readme.md")));
+    assert!(!paths.iter().any(|p| p.contains("root.txt")));
+    assert!(!paths.iter().any(|p| p.contains("data.json")));
+    Ok(())
+}
+
+#[rstest]
+fn zip_edit_shows_editor_ui(
+    #[with(&["--allow-zip-browse"])] server: TestServer,
+) -> Result<(), Error> {
+    let zip_path = server.path().join("archive.zip");
+    write_zip(&zip_path, vec![("folder/note.txt", b"hello world")])?;
+
+    let url = format!("{}archive.zip/folder/note.txt?edit", server.url());
+    let resp = reqwest::blocking::get(url)?;
+    assert_eq!(resp.status(), 200);
+    let body = resp.text()?;
+    let editable = utils::retrieve_edit_file(&body).unwrap_or(false);
+    assert!(editable);
+    Ok(())
+}
