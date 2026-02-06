@@ -55,6 +55,15 @@ pub fn retrieve_edit_file(content: &str) -> Option<bool> {
 }
 
 #[allow(dead_code)]
+pub fn retrieve_kind(content: &str) -> Option<String> {
+    let value = retrieve_json(content).unwrap();
+    value
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string())
+}
+
+#[allow(dead_code)]
 pub fn encode_uri(v: &str) -> String {
     let parts: Vec<_> = v.split('/').map(urlencoding::encode).collect();
     parts.join("/")

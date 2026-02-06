@@ -16,10 +16,14 @@
  * @property {boolean} allow_delete
  * @property {boolean} allow_search
  * @property {boolean} allow_archive
+ * @property {boolean} allow_zip_browse
+ * @property {string[]} zip_extensions
  * @property {boolean} auth
  * @property {string} user
  * @property {boolean} dir_exists
  * @property {string} editable
+ * @property {boolean} zip_browsing
+ * @property {string|null} zip_file
  */
 
 var DUFS_MAX_UPLOADINGS = 1;
@@ -158,10 +162,24 @@ async function ready() {
   $logoutBtn = document.querySelector(".logout-btn");
   $userName = document.querySelector(".user-name");
 
+  setupThemeToggle();
+
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
+  if (DATA.zip_browsing) {
+    const $breadcrumb = document.querySelector(".breadcrumb");
+    const zipLabel = DATA.zip_file || "ZIP";
+    const $zipIndicator = document.createElement("span");
+    $zipIndicator.className = "zip-indicator";
+    $zipIndicator.textContent = "ZIP";
+    $zipIndicator.title = `Browsing ${zipLabel}`;
+    $breadcrumb.appendChild($zipIndicator);
+    document.body.classList.add("zip-browsing");
+  }
+
   if (DATA.kind === "Index") {
-    document.title = `Index of ${DATA.href} - Dufs`;
+    const zipSuffix = DATA.zip_browsing ? " (zip)" : "";
+    document.title = `Index of ${DATA.href}${zipSuffix} - Dufs`;
     document.querySelector(".index-page").classList.remove("hidden");
 
     await setupIndexPage();
@@ -176,6 +194,71 @@ async function ready() {
 
     await setupEditorPage();
   }
+}
+
+function setupThemeToggle() {
+  const $toggle = document.querySelector(".theme-toggle");
+  if (!$toggle) return;
+
+  const setTheme = theme => {
+    if (theme) {
+      document.documentElement.dataset.theme = theme;
+    } else {
+      delete document.documentElement.dataset.theme;
+    }
+    updateThemeIcon();
+  };
+
+  const getStoredTheme = () => localStorage.getItem("dufs.theme");
+
+  const getPreferredTheme = () => {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  };
+
+  const updateThemeIcon = () => {
+    const theme = document.documentElement.dataset.theme || getPreferredTheme();
+    $toggle.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+    const $icon = $toggle.querySelector(".icon-theme");
+    if (!$icon) return;
+    if (theme === "dark") {
+      $icon.innerHTML = '<path d="M6.5 0a.5.5 0 0 1 .5.5 6 6 0 1 0 6.5 6.5.5.5 0 0 1 1 0 7 7 0 1 1-8-7 .5.5 0 0 1 .5-.5z"/>';
+    } else {
+      $icon.innerHTML = '<path d="M8 12.5A4.5 4.5 0 1 1 12.5 8 4.505 4.505 0 0 1 8 12.5zm0-8A3.5 3.5 0 1 0 11.5 8 3.504 3.504 0 0 0 8 4.5z"/>';
+    }
+  };
+
+  const stored = getStoredTheme();
+  if (stored === "dark" || stored === "light") {
+    setTheme(stored);
+  } else {
+    setTheme(null);
+  }
+
+  if (window.matchMedia) {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", () => {
+      if (!getStoredTheme()) {
+        setTheme(null);
+      }
+    });
+  }
+
+  const toggleTheme = () => {
+    const current = document.documentElement.dataset.theme || getPreferredTheme();
+    const next = current === "dark" ? "light" : "dark";
+    localStorage.setItem("dufs.theme", next);
+    setTheme(next);
+  };
+
+  $toggle.addEventListener("click", toggleTheme);
+  $toggle.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleTheme();
+    }
+  });
 }
 
 class Uploader {
@@ -370,7 +453,7 @@ function addBreadcrumb(href, uri_prefix) {
 }
 
 async function setupIndexPage() {
-  if (DATA.allow_archive) {
+  if (DATA.allow_archive && !DATA.zip_browsing) {
     const $download = document.querySelector(".download");
     $download.href = baseUrl() + "?zip";
     $download.title = "Download folder as a .zip file";
@@ -470,24 +553,30 @@ function renderPathsTableBody() {
 function addPath(file, index) {
   const encodedName = encodedStr(file.name);
   let url = newUrl(file.name);
+  const zipExtensions = Array.isArray(DATA.zip_extensions) && DATA.zip_extensions.length > 0
+    ? DATA.zip_extensions.map(v => v.replace(/^\./, '').toLowerCase())
+    : ["zip"];
+  const isZip = DATA.allow_zip_browse && file.path_type.endsWith("File") && zipExtensions.includes(extName(file.name).slice(1).toLowerCase());
   let actionDelete = "";
   let actionDownload = "";
   let actionMove = "";
   let actionEdit = "";
   let actionView = "";
-  let isDir = file.path_type.endsWith("Dir");
+  let isDir = file.path_type.endsWith("Dir") || isZip;
+  const downloadUrl = url;
   if (isDir) {
     url += "/";
-    if (DATA.allow_archive) {
+    if (DATA.allow_archive && !isZip) {
       actionDownload = `
       <div class="action-btn">
         <a class="dlwt" href="${url}?zip" title="Download folder as a .zip file" download>${ICONS.download}</a>
       </div>`;
     }
-  } else {
+  }
+  if (!isDir || isZip) {
     actionDownload = `
     <div class="action-btn" >
-      <a class="dlwt" href="${url}" title="Download file" download>${ICONS.download}</a>
+      <a class="dlwt" href="${downloadUrl}" title="Download file" download>${ICONS.download}</a>
     </div>`;
   }
   if (DATA.allow_delete) {
@@ -512,12 +601,12 @@ function addPath(file, index) {
     ${actionEdit}
   </td>`;
 
-  let sizeDisplay = isDir ? formatDirSize(file.size) : formatFileSize(file.size).join(" ");
+  let sizeDisplay = isDir && !isZip ? formatDirSize(file.size) : formatFileSize(file.size).join(" ");
 
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
   <td class="path cell-icon">
-    ${getPathIcon(file.path_type, file.name)}
+  ${getPathIcon(isZip ? "Dir" : file.path_type, file.name)}
   </td>
   <td class="path cell-name">
     <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
