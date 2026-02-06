@@ -162,6 +162,8 @@ async function ready() {
   $logoutBtn = document.querySelector(".logout-btn");
   $userName = document.querySelector(".user-name");
 
+  setupThemeToggle();
+
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
   if (DATA.zip_browsing) {
@@ -192,6 +194,70 @@ async function ready() {
 
     await setupEditorPage();
   }
+}
+
+function setupThemeToggle() {
+  const $toggle = document.querySelector(".theme-toggle");
+  if (!$toggle) return;
+
+  const setTheme = theme => {
+    if (theme) {
+      document.documentElement.dataset.theme = theme;
+    } else {
+      delete document.documentElement.dataset.theme;
+    }
+    updateThemeIcon();
+  };
+
+  const getStoredTheme = () => localStorage.getItem("dufs.theme");
+
+  const getPreferredTheme = () => {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  };
+
+  const updateThemeIcon = () => {
+    const theme = document.documentElement.dataset.theme || getPreferredTheme();
+    const $icon = $toggle.querySelector(".icon-theme");
+    if (!$icon) return;
+    if (theme === "dark") {
+      $icon.innerHTML = '<path d="M6.5 0a.5.5 0 0 1 .5.5 6 6 0 1 0 6.5 6.5.5.5 0 0 1 1 0 7 7 0 1 1-8-7 .5.5 0 0 1 .5-.5z"/>';
+    } else {
+      $icon.innerHTML = '<path d="M8 12.5A4.5 4.5 0 1 1 12.5 8 4.505 4.505 0 0 1 8 12.5zm0-8A3.5 3.5 0 1 0 11.5 8 3.504 3.504 0 0 0 8 4.5z"/>';
+    }
+  };
+
+  const stored = getStoredTheme();
+  if (stored === "dark" || stored === "light") {
+    setTheme(stored);
+  } else {
+    setTheme(null);
+  }
+
+  if (window.matchMedia) {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", () => {
+      if (!getStoredTheme()) {
+        setTheme(null);
+      }
+    });
+  }
+
+  const toggleTheme = () => {
+    const current = document.documentElement.dataset.theme || getPreferredTheme();
+    const next = current === "dark" ? "light" : "dark";
+    localStorage.setItem("dufs.theme", next);
+    setTheme(next);
+  };
+
+  $toggle.addEventListener("click", toggleTheme);
+  $toggle.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleTheme();
+    }
+  });
 }
 
 class Uploader {

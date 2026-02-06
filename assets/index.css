@@ -82,6 +82,31 @@ body {
   padding-left: 0.25em;
 }
 
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 4px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background-color: #f6f8fa;
+}
+
+.theme-toggle .icon-theme {
+  fill: #0969da;
+}
+
+.theme-toggle:hover {
+  background-color: #eaeef2;
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid #0969da;
+  outline-offset: 2px;
+}
+
 .upload-file input {
   display: none;
 }
@@ -333,4 +358,122 @@ body {
     background: black;
     color: white;
   }
+}
+
+/* manual theme override */
+:root[data-theme="dark"] body {
+  background-color: #000;
+}
+
+:root[data-theme="dark"] html,
+:root[data-theme="dark"] .breadcrumb>b,
+:root[data-theme="dark"] .searchbar #search {
+  color: #fff;
+}
+
+:root[data-theme="dark"] .uploaders-table th,
+:root[data-theme="dark"] .paths-table th {
+  color: #ddd;
+}
+
+:root[data-theme="dark"] svg,
+:root[data-theme="dark"] .path svg,
+:root[data-theme="dark"] .breadcrumb svg,
+:root[data-theme="dark"] .theme-toggle .icon-theme {
+  fill: #fff;
+}
+
+:root[data-theme="dark"] .head {
+  background-color: #111;
+}
+
+:root[data-theme="dark"] .theme-toggle {
+  border-color: #3a3a3a;
+  background-color: #1f1f1f;
+}
+
+:root[data-theme="dark"] .theme-toggle:hover {
+  background-color: #2a2a2a;
+}
+
+:root[data-theme="dark"] .searchbar {
+  background-color: #111;
+  border-color: #fff6;
+}
+
+:root[data-theme="dark"] .searchbar svg {
+  fill: #fff6;
+}
+
+:root[data-theme="dark"] .path a {
+  color: #3191ff;
+}
+
+:root[data-theme="dark"] .paths-table tbody tr:hover {
+  background-color: #1a1a1a;
+}
+
+:root[data-theme="dark"] .zip-indicator {
+  color: #cfe8f6;
+  background-color: #0c2430;
+  border-color: #1a3b4a;
+}
+
+:root[data-theme="dark"] .editor {
+  background: black;
+  color: white;
+}
+
+:root[data-theme="light"] body {
+  background-color: white;
+}
+
+:root[data-theme="light"] html,
+:root[data-theme="light"] .breadcrumb>b,
+:root[data-theme="light"] .searchbar #search {
+  color: #24292e;
+}
+
+:root[data-theme="light"] .uploaders-table th,
+:root[data-theme="light"] .paths-table th {
+  color: #5c5c5c;
+}
+
+:root[data-theme="light"] svg,
+:root[data-theme="light"] .path svg,
+:root[data-theme="light"] .breadcrumb svg,
+:root[data-theme="light"] .theme-toggle .icon-theme {
+  fill: #0969da;
+}
+
+:root[data-theme="light"] .head {
+  background-color: white;
+}
+
+:root[data-theme="light"] .searchbar {
+  background-color: #fafafa;
+  border-color: #ddd;
+}
+
+:root[data-theme="light"] .searchbar svg {
+  fill: #9a9a9a;
+}
+
+:root[data-theme="light"] .path a {
+  color: #0366d6;
+}
+
+:root[data-theme="light"] .paths-table tbody tr:hover {
+  background-color: #fafafa;
+}
+
+:root[data-theme="light"] .zip-indicator {
+  color: #0b4f6c;
+  background-color: #e6f2f8;
+  border-color: #b6d7e6;
+}
+
+:root[data-theme="light"] .editor {
+  background: white;
+  color: #24292e;
 }
