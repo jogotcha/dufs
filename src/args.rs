@@ -309,6 +309,7 @@ pub struct Args {
     pub allow_archive: bool,
     #[serde(default = "default_zip_extensions")]
     #[serde(deserialize_with = "deserialize_string_or_vec")]
+    #[default(default_zip_extensions())]
     pub zip_extensions: Vec<String>,
     pub allow_zip_browse: bool,
     pub allow_hash: bool,
