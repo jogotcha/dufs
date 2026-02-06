@@ -24,7 +24,7 @@
 - After changes, regularly run `cargo test` , `cargo fmt --all --check` and `cargo clippy --all --all-targets` and fix any failures.
 
 ## Commit conventions
-- Use Conventional Commits prefixes: `feat:`, `fix:`, `chore:`.
+- Use Conventional Commits prefixes: `feat:`, `fix:`, `chore:`. accoding to https://www.conventionalcommits.org/en/v1.0.0/#summary
 
 ## Patterns to follow when changing behavior
 - Use `IndexData`/`PathItem` for any directory listing or UI data changes; keep JSON and HTML outputs consistent.
