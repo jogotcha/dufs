@@ -417,7 +417,7 @@ impl Args {
             // When provided via CLI, clap has already split by value_delimiter(',').
             // Just trim whitespace and discard empty entries.
             args.zip_extensions = exts
-                .map(|v| v.trim())
+                .map(|v| v.trim().trim_start_matches('.'))
                 .filter(|v| !v.is_empty())
                 .map(|v| v.to_string())
                 .collect();
@@ -429,7 +429,7 @@ impl Args {
                 .into_iter()
                 .flat_map(|v| {
                     v.split(',')
-                        .map(str::trim)
+                        .map(|s| s.trim().trim_start_matches('.'))
                         .filter(|s| !s.is_empty())
                         .map(String::from)
                         .collect::<Vec<String>>()

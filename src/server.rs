@@ -82,20 +82,7 @@ struct ZipBrowsePath {
 
 impl Server {
     pub fn init(args: Args, running: Arc<AtomicBool>) -> Result<Self> {
-        let assets_hash = match args.assets.as_ref() {
-            Some(path) => {
-                let html = std::fs::read(path.join("index.html")).unwrap_or_default();
-                let css = std::fs::read(path.join("index.css")).unwrap_or_default();
-                let js = std::fs::read(path.join("index.js")).unwrap_or_default();
-                hash_assets(&html, &css, &js)
-            }
-            None => hash_assets(INDEX_HTML.as_bytes(), INDEX_CSS.as_bytes(), INDEX_JS.as_bytes()),
-        };
-        let assets_prefix = format!(
-            "__dufs_v{}_{}__/",
-            env!("CARGO_PKG_VERSION"),
-            &assets_hash[..8]
-        );
+        let assets_prefix = format!("__dufs_v{}__/", env!("CARGO_PKG_VERSION"));
         let single_file_req_paths = if args.path_is_file {
             vec![
                 args.uri_prefix.to_string(),
@@ -875,16 +862,8 @@ impl Server {
                 return Ok(());
             }
 
-            let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
-            tokio::spawn(async move {
-                if let Ok(entry_reader) = zip.reader_without_entry(index).await {
-                    let mut entry_reader = entry_reader.compat();
-                    if let Err(err) = io::copy(&mut entry_reader, &mut writer).await {
-                        error!("Failed to read zip entry, {err}");
-                    }
-                }
-            });
-            let reader_stream = ReaderStream::with_capacity(reader, BUF_SIZE);
+            let entry_reader = zip.into_entry(index).await?;
+            let reader_stream = ReaderStream::with_capacity(entry_reader.compat(), BUF_SIZE);
             let stream_body = StreamBody::new(
                 reader_stream
                     .map_ok(Frame::data)
@@ -1953,13 +1932,11 @@ impl Server {
 
     fn is_zip_name(&self, name: &str) -> bool {
         let name = name.to_ascii_lowercase();
-        let ext = name
-            .rsplit('.')
-            .next()
-            .unwrap_or("")
-            .trim()
-            .trim_start_matches('.');
-        if ext.is_empty() || ext == name {
+        let Some((_, ext)) = name.rsplit_once('.') else {
+            return false;
+        };
+        let ext = ext.trim().trim_start_matches('.');
+        if ext.is_empty() {
             return false;
         }
         self.args
@@ -2211,14 +2188,6 @@ fn to_timestamp(time: &SystemTime) -> u64 {
     time.duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
-}
-
-fn hash_assets(html: &[u8], css: &[u8], js: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(html);
-    hasher.update(css);
-    hasher.update(js);
-    format!("{:x}", hasher.finalize())
 }
 
 fn normalize_path<P: AsRef<Path>>(path: P) -> String {
