@@ -177,6 +177,17 @@ body {
   vertical-align: text-top;
 }
 
+.filetype-symbol {
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  padding-right: 0.5em;
+  vertical-align: text-top;
+  font-size: 14px;
+  line-height: 16px;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
 .path {
   list-style: none;
 }
