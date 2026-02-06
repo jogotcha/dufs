@@ -844,7 +844,12 @@ impl Server {
                     }
                 }
                 let href = format!("/{}", normalize_path(format!("{}/{}", zip_browse.zip_relative_path, inner_path)));
-                self.send_zip_edit(href, DataKind::View, editable, head_only, user, res)?;
+                let kind = if has_query_flag(query_params, "edit") {
+                    DataKind::Edit
+                } else {
+                    DataKind::View
+                };
+                self.send_zip_edit(href, kind, editable, head_only, user, res)?;
                 return Ok(());
             }
             let entry = &entries[index];

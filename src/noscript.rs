@@ -65,45 +65,10 @@ fn render_path_item(path: &PathItem) -> String {
         href.push_str("/?noscript");
         name.push('/');
     };
-    let symbol = if path.path_type.is_dir() {
-        String::new()
-    } else {
-        format!("{} ", filetype_symbol(path.base_name()))
-    };
     let mtime = format_mtime(path.mtime).unwrap_or_default();
     let size = format_size(path.size, path.path_type);
 
-    format!("<tr><td><a href=\"{href}\">{symbol}{name}</a></td><td>{mtime}</td><td>{size}</td></tr>")
-}
-
-fn filetype_symbol(name: &str) -> &'static str {
-    let ext = file_extension(name);
-    match ext.as_deref() {
-        Some("jpg" | "jpeg" | "png" | "gif" | "bmp" | "svg" | "webp" | "ico" | "tif" | "tiff") => "🖼️",
-        Some("mp3" | "wav" | "ogg" | "m4a" | "flac" | "aac") => "🎵",
-        Some("mp4" | "mov" | "avi" | "wmv" | "flv" | "webm" | "mkv") => "🎬",
-        Some("zip" | "tar" | "gz" | "tgz" | "bz2" | "xz" | "7z" | "rar") => "📦",
-        Some(
-            "rs" | "js" | "ts" | "jsx" | "tsx" | "py" | "go" | "java" | "c" | "cpp" | "h" | "hpp" | "cs"
-            | "json" | "yaml" | "yml" | "toml" | "md" | "html" | "htm" | "css" | "scss" | "less" | "sh"
-            | "bat" | "ps1" | "sql",
-        ) => "💻",
-        Some("txt" | "log" | "ini" | "conf" | "cfg" | "env") => "📝",
-        Some("pdf") => "📕",
-        Some("ttf" | "otf" | "woff" | "woff2") => "🔤",
-        Some("csv" | "tsv" | "xls" | "xlsx" | "parquet") => "🗄️",
-        Some("exe" | "msi" | "dll" | "bin") => "⚙️",
-        _ => "📄",
-    }
-}
-
-fn file_extension(name: &str) -> Option<String> {
-    let base = name.rsplit('/').next().unwrap_or_default();
-    let dot = base.rfind('.')?;
-    if dot == 0 || dot + 1 >= base.len() {
-        return None;
-    }
-    Some(base[dot + 1..].to_ascii_lowercase())
+    format!("<tr><td><a href=\"{href}\">{name}</a></td><td>{mtime}</td><td>{size}</td></tr>")
 }
 
 fn format_mtime(mtime: u64) -> Option<String> {
