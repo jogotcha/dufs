@@ -1954,14 +1954,19 @@ impl Server {
 
     fn is_zip_name(&self, name: &str) -> bool {
         let name = name.to_ascii_lowercase();
-        let ext = name.rsplit('.').next().unwrap_or("");
+        let ext = name
+            .rsplit('.')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .trim_start_matches('.');
         if ext.is_empty() || ext == name {
             return false;
         }
         self.args
             .zip_extensions
             .iter()
-            .any(|v| v.trim_start_matches('.').eq_ignore_ascii_case(ext))
+            .any(|v| v.trim().trim_start_matches('.').eq_ignore_ascii_case(ext))
     }
 
     async fn list_dir(
