@@ -414,8 +414,26 @@ impl Args {
             args.allow_archive = allow_all || matches.get_flag("allow-archive");
         }
         if let Some(exts) = matches.get_many::<String>("zip-extensions") {
+            // When provided via CLI, clap has already split by value_delimiter(',').
+            // Just trim whitespace and discard empty entries.
             args.zip_extensions = exts
-                .flat_map(|v| v.split(',').map(|v| v.to_string()).collect::<Vec<String>>())
+                .map(|v| v.trim())
+                .filter(|v| !v.is_empty())
+                .map(|v| v.to_string())
+                .collect();
+        } else {
+            // When coming from config/env, entries may contain commas and lack trimming.
+            // Normalize by splitting, trimming, and discarding empty pieces.
+            args.zip_extensions = args
+                .zip_extensions
+                .into_iter()
+                .flat_map(|v| {
+                    v.split(',')
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                        .collect::<Vec<String>>()
+                })
                 .collect();
         }
         if !args.allow_zip_browse {
