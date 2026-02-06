@@ -10,7 +10,7 @@ use crate::utils::{
 use crate::Args;
 
 use anyhow::{anyhow, Result};
-use async_zip::{tokio::write::ZipFileWriter, Compression, ZipDateTime, ZipEntryBuilder};
+use async_zip::{base::read::seek::ZipFileReader, tokio::write::ZipFileWriter, Compression, ZipDateTime, ZipEntryBuilder};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bytes::Bytes;
 use chrono::{LocalResult, TimeZone, Utc};
@@ -34,7 +34,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::borrow::Cow;
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::Metadata;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
@@ -43,10 +43,10 @@ use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWrite, BufReader};
 use tokio::{fs, io};
 
-use tokio_util::compat::FuturesAsyncWriteCompatExt;
+use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt, TokioAsyncReadCompatExt};
 use tokio_util::io::{ReaderStream, StreamReader};
 use uuid::Uuid;
 use walkdir::{DirEntry, WalkDir};
@@ -74,9 +74,28 @@ pub struct Server {
     running: Arc<AtomicBool>,
 }
 
+#[derive(Debug, Clone)]
+struct ZipBrowsePath {
+    zip_relative_path: String,
+    inner_path: String,
+}
+
 impl Server {
     pub fn init(args: Args, running: Arc<AtomicBool>) -> Result<Self> {
-        let assets_prefix = format!("__dufs_v{}__/", env!("CARGO_PKG_VERSION"));
+        let assets_hash = match args.assets.as_ref() {
+            Some(path) => {
+                let html = std::fs::read(path.join("index.html")).unwrap_or_default();
+                let css = std::fs::read(path.join("index.css")).unwrap_or_default();
+                let js = std::fs::read(path.join("index.js")).unwrap_or_default();
+                hash_assets(&html, &css, &js)
+            }
+            None => hash_assets(INDEX_HTML.as_bytes(), INDEX_CSS.as_bytes(), INDEX_JS.as_bytes()),
+        };
+        let assets_prefix = format!(
+            "__dufs_v{}_{}__/",
+            env!("CARGO_PKG_VERSION"),
+            &assets_hash[..8]
+        );
         let single_file_req_paths = if args.path_is_file {
             vec![
                 args.uri_prefix.to_string(),
@@ -186,8 +205,19 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
+        let zip_browse = if self.args.allow_zip_browse {
+            self.parse_zip_browse_path(req_path, &relative_path)
+        } else {
+            None
+        };
+
+        let auth_path = zip_browse
+            .as_ref()
+            .map(|v| v.zip_relative_path.as_str())
+            .unwrap_or(&relative_path);
+
         let guard = self.args.auth.guard(
-            &relative_path,
+            auth_path,
             &method,
             authorization,
             query_params.get("token"),
@@ -249,7 +279,11 @@ impl Server {
             }
             return Ok(res);
         }
-        let path = match self.join_path(&relative_path) {
+        let join_relative_path = zip_browse
+            .as_ref()
+            .map(|v| v.zip_relative_path.as_str())
+            .unwrap_or(&relative_path);
+        let path = match self.join_path(join_relative_path) {
             Some(v) => v,
             None => {
                 status_forbid(&mut res);
@@ -279,6 +313,24 @@ impl Server {
 
         match method {
             Method::GET | Method::HEAD => {
+                if let Some(zip_browse) = zip_browse.as_ref() {
+                    if !self.args.allow_zip_browse || !is_file {
+                        status_not_found(&mut res);
+                        return Ok(res);
+                    }
+                    self.handle_zip_browse(
+                        path,
+                        zip_browse,
+                        &query_params,
+                        headers,
+                        head_only,
+                        user,
+                        access_paths,
+                        &mut res,
+                    )
+                    .await?;
+                    return Ok(res);
+                }
                 if is_dir {
                     if render_try_index {
                         if allow_archive && has_query_flag(&query_params, "zip") {
@@ -693,6 +745,266 @@ impl Server {
         let boxed_body = stream_body.boxed();
         *res.body_mut() = boxed_body;
         Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn handle_zip_browse(
+        &self,
+        zip_path: &Path,
+        zip_browse: &ZipBrowsePath,
+        query_params: &HashMap<String, String>,
+        _headers: &HeaderMap<HeaderValue>,
+        head_only: bool,
+        user: Option<String>,
+        _access_paths: AccessPaths,
+        res: &mut Response,
+    ) -> Result<()> {
+        let inner_path = match normalize_zip_inner_path(&zip_browse.inner_path) {
+            Some(v) => v,
+            None => {
+                status_bad_request(res, "Invalid zip path");
+                return Ok(());
+            }
+        };
+
+        let file = File::open(zip_path).await?;
+        let reader = BufReader::new(file).compat();
+        let mut zip = ZipFileReader::new(reader).await?;
+        let entries = zip.file().entries().to_vec();
+
+        let mut exact_entry: Option<(usize, bool, String)> = None;
+        let mut has_prefix = false;
+        let prefix = if inner_path.is_empty() {
+            String::new()
+        } else {
+            format!("{inner_path}/")
+        };
+
+        if !inner_path.is_empty() {
+            for (index, entry) in entries.iter().enumerate() {
+                let raw_name = match entry.filename().as_str() {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let name = match normalize_zip_entry_name(raw_name) {
+                    Some(v) => v,
+                    None => continue,
+                };
+                if name == inner_path || name == prefix {
+                    let is_dir = entry.dir().unwrap_or(false) || name.ends_with('/');
+                    exact_entry = Some((index, is_dir, name.clone()));
+                    if !is_dir {
+                        break;
+                    }
+                }
+                if name.starts_with(&prefix) {
+                    has_prefix = true;
+                }
+            }
+        }
+
+        if let Some((index, false, entry_name)) = exact_entry {
+            if has_query_flag(query_params, "hash") {
+                if !self.args.allow_hash {
+                    status_forbid(res);
+                    return Ok(());
+                }
+                let mut hasher = Sha256::new();
+                if let Ok(entry_reader) = zip.reader_without_entry(index).await {
+                    let mut entry_reader = entry_reader.compat();
+                    let mut buffer = [0u8; 8192];
+                    loop {
+                        let bytes_read = entry_reader.read(&mut buffer).await?;
+                        if bytes_read == 0 {
+                            break;
+                        }
+                        hasher.update(&buffer[..bytes_read]);
+                    }
+                }
+                let output = format!("{:x}", hasher.finalize());
+                res.headers_mut()
+                    .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+                res.headers_mut()
+                    .typed_insert(ContentLength(output.len() as u64));
+                if head_only {
+                    return Ok(());
+                }
+                *res.body_mut() = body_full(output);
+                return Ok(());
+            }
+            if has_query_flag(query_params, "view") || has_query_flag(query_params, "edit") {
+                let entry = &entries[index];
+                let mut editable = false;
+                if entry.uncompressed_size() <= EDITABLE_TEXT_MAX_SIZE {
+                    if let Ok(entry_reader) = zip.reader_without_entry(index).await {
+                        let entry_reader = entry_reader.compat();
+                        let mut buffer: Vec<u8> = vec![];
+                        let mut limited_reader = entry_reader.take(1024);
+                        limited_reader.read_to_end(&mut buffer).await?;
+                        editable = content_inspector::inspect(&buffer).is_text();
+                    }
+                }
+                let href = format!("/{}", normalize_path(format!("{}/{}", zip_browse.zip_relative_path, inner_path)));
+                self.send_zip_edit(href, DataKind::View, editable, head_only, user, res)?;
+                return Ok(());
+            }
+            let entry = &entries[index];
+            let mime = mime_guess::from_path(&entry_name)
+                .first()
+                .unwrap_or(mime_guess::mime::APPLICATION_OCTET_STREAM);
+            res.headers_mut().typed_insert(ContentType::from(mime));
+            res.headers_mut()
+                .typed_insert(ContentLength(entry.uncompressed_size()));
+            res.headers_mut()
+                .typed_insert(CacheControl::new().with_no_cache());
+
+            let filename = Path::new(&entry_name)
+                .file_name()
+                .and_then(|v| v.to_str())
+                .unwrap_or("file");
+            set_content_disposition(res, true, filename)?;
+
+            if head_only {
+                return Ok(());
+            }
+
+            let (mut writer, reader) = tokio::io::duplex(BUF_SIZE);
+            tokio::spawn(async move {
+                if let Ok(entry_reader) = zip.reader_without_entry(index).await {
+                    let mut entry_reader = entry_reader.compat();
+                    if let Err(err) = io::copy(&mut entry_reader, &mut writer).await {
+                        error!("Failed to read zip entry, {err}");
+                    }
+                }
+            });
+            let reader_stream = ReaderStream::with_capacity(reader, BUF_SIZE);
+            let stream_body = StreamBody::new(
+                reader_stream
+                    .map_ok(Frame::data)
+                    .map_err(|err| anyhow!("{err}")),
+            );
+            let boxed_body = stream_body.boxed();
+            *res.body_mut() = boxed_body;
+            return Ok(());
+        }
+
+        if !inner_path.is_empty() && exact_entry.is_none() && !has_prefix {
+            status_not_found(res);
+            return Ok(());
+        }
+
+        let mut items: HashMap<String, PathItem> = HashMap::new();
+        let mut dir_children: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut dir_mtime: HashMap<String, u64> = HashMap::new();
+
+        for entry in entries.iter() {
+            let raw_name = match entry.filename().as_str() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            let name = match normalize_zip_entry_name(raw_name) {
+                Some(v) => v,
+                None => continue,
+            };
+            if !name.starts_with(&prefix) {
+                continue;
+            }
+            let rest = &name[prefix.len()..];
+            if rest.is_empty() {
+                continue;
+            }
+            let entry_mtime = zip_datetime_to_timestamp(entry.last_modification_date());
+            let mut parts = rest.split('/');
+            let first = match parts.next() {
+                Some(v) if !v.is_empty() => v,
+                _ => continue,
+            };
+            let second = parts.next();
+            if let Some(second) = second {
+                if second.is_empty() && parts.next().is_none() {
+                    items.entry(first.to_string()).or_insert(PathItem {
+                        path_type: PathType::Dir,
+                        name: first.to_string(),
+                        mtime: entry_mtime,
+                        size: 0,
+                    });
+                    dir_mtime
+                        .entry(first.to_string())
+                        .and_modify(|v| *v = (*v).max(entry_mtime))
+                        .or_insert(entry_mtime);
+                } else {
+                    items.entry(first.to_string()).or_insert(PathItem {
+                        path_type: PathType::Dir,
+                        name: first.to_string(),
+                        mtime: entry_mtime,
+                        size: 0,
+                    });
+                    dir_children
+                        .entry(first.to_string())
+                        .or_default()
+                        .insert(second.to_string());
+                    dir_mtime
+                        .entry(first.to_string())
+                        .and_modify(|v| *v = (*v).max(entry_mtime))
+                        .or_insert(entry_mtime);
+                }
+            } else {
+                let is_dir = entry.dir().unwrap_or(false) || name.ends_with('/');
+                if is_dir {
+                    items.entry(first.to_string()).or_insert(PathItem {
+                        path_type: PathType::Dir,
+                        name: first.to_string(),
+                        mtime: entry_mtime,
+                        size: 0,
+                    });
+                    dir_mtime
+                        .entry(first.to_string())
+                        .and_modify(|v| *v = (*v).max(entry_mtime))
+                        .or_insert(entry_mtime);
+                } else {
+                    items.insert(
+                        first.to_string(),
+                        PathItem {
+                            path_type: PathType::File,
+                            name: first.to_string(),
+                            mtime: entry_mtime,
+                            size: entry.uncompressed_size(),
+                        },
+                    );
+                }
+            }
+        }
+
+        for (name, item) in items.iter_mut() {
+            if item.is_dir() {
+                let count = dir_children.get(name).map(|v| v.len()).unwrap_or(0);
+                item.size = if count >= MAX_SUBPATHS_COUNT as usize {
+                    MAX_SUBPATHS_COUNT
+                } else {
+                    count as u64
+                };
+                if let Some(mtime) = dir_mtime.get(name) {
+                    item.mtime = *mtime;
+                }
+            }
+        }
+
+        let href = if inner_path.is_empty() {
+            format!("/{}", zip_browse.zip_relative_path)
+        } else {
+            format!("/{}/{}", zip_browse.zip_relative_path, inner_path)
+        };
+
+        let zip_file = try_get_file_name(zip_path)?.to_string();
+        self.send_zip_index(
+            href,
+            zip_file,
+            items.into_values().collect(),
+            query_params,
+            head_only,
+            user,
+            res,
+        )
     }
 
     async fn handle_render_index(
@@ -1251,9 +1563,13 @@ impl Server {
             allow_delete: self.args.allow_delete && readwrite,
             allow_search: self.args.allow_search,
             allow_archive: self.args.allow_archive,
+            allow_zip_browse: self.args.allow_zip_browse,
+            zip_extensions: self.args.zip_extensions.clone(),
             dir_exists: exist,
             auth: self.args.auth.has_users(),
             user,
+            zip_browsing: false,
+            zip_file: None,
             paths,
         };
         let output = if has_query_flag(query_params, "json") {
@@ -1284,6 +1600,151 @@ impl Server {
             "x-content-type-options",
             HeaderValue::from_static("nosniff"),
         );
+        if head_only {
+            return Ok(());
+        }
+        *res.body_mut() = body_full(output);
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn send_zip_index(
+        &self,
+        href: String,
+        zip_file: String,
+        mut paths: Vec<PathItem>,
+        query_params: &HashMap<String, String>,
+        head_only: bool,
+        user: Option<String>,
+        res: &mut Response,
+    ) -> Result<()> {
+        if let Some(sort) = query_params.get("sort") {
+            if sort == "name" {
+                paths.sort_by(|v1, v2| v1.sort_by_name(v2))
+            } else if sort == "mtime" {
+                paths.sort_by(|v1, v2| v1.sort_by_mtime(v2))
+            } else if sort == "size" {
+                paths.sort_by(|v1, v2| v1.sort_by_size(v2))
+            }
+            if query_params
+                .get("order")
+                .map(|v| v == "desc")
+                .unwrap_or_default()
+            {
+                paths.reverse()
+            }
+        } else {
+            paths.sort_by(|v1, v2| v1.sort_by_name(v2))
+        }
+        if has_query_flag(query_params, "simple") {
+            let output = paths
+                .into_iter()
+                .map(|v| {
+                    let displayname = escape_str_pcdata(&v.name);
+                    if v.is_dir() {
+                        format!("{}/\n", displayname)
+                    } else {
+                        format!("{}\n", displayname)
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("");
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+            res.headers_mut()
+                .typed_insert(ContentLength(output.len() as u64));
+            *res.body_mut() = body_full(output);
+            if head_only {
+                return Ok(());
+            }
+            return Ok(());
+        }
+
+        let data = IndexData {
+            kind: DataKind::Index,
+            href,
+            uri_prefix: self.args.uri_prefix.clone(),
+            allow_upload: false,
+            allow_delete: false,
+            allow_search: false,
+            allow_archive: false,
+            allow_zip_browse: false,
+            zip_extensions: self.args.zip_extensions.clone(),
+            dir_exists: true,
+            auth: self.args.auth.has_users(),
+            user,
+            zip_browsing: true,
+            zip_file: Some(zip_file),
+            paths,
+        };
+        let output = if has_query_flag(query_params, "json") {
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::APPLICATION_JSON));
+            serde_json::to_string_pretty(&data)?
+        } else if has_query_flag(query_params, "noscript") {
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+            generate_noscript_html(&data)?
+        } else {
+            res.headers_mut()
+                .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+
+            let index_data = STANDARD.encode(serde_json::to_string(&data)?);
+            self.html
+                .replace(
+                    "__ASSETS_PREFIX__",
+                    &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
+                )
+                .replace("__INDEX_DATA__", &index_data)
+        };
+        res.headers_mut()
+            .typed_insert(ContentLength(output.len() as u64));
+        res.headers_mut()
+            .typed_insert(CacheControl::new().with_no_cache());
+        res.headers_mut().insert(
+            "x-content-type-options",
+            HeaderValue::from_static("nosniff"),
+        );
+        if head_only {
+            return Ok(());
+        }
+        *res.body_mut() = body_full(output);
+        Ok(())
+    }
+
+    fn send_zip_edit(
+        &self,
+        href: String,
+        kind: DataKind,
+        editable: bool,
+        head_only: bool,
+        user: Option<String>,
+        res: &mut Response,
+    ) -> Result<()> {
+        let data = EditData {
+            href,
+            kind,
+            uri_prefix: self.args.uri_prefix.clone(),
+            allow_upload: false,
+            allow_delete: false,
+            auth: self.args.auth.has_users(),
+            user,
+            editable,
+        };
+        res.headers_mut()
+            .typed_insert(ContentType::from(mime_guess::mime::TEXT_HTML_UTF_8));
+        let index_data = STANDARD.encode(serde_json::to_string(&data)?);
+        let output = self
+            .html
+            .replace(
+                "__ASSETS_PREFIX__",
+                &format!("{}{}", self.args.uri_prefix, self.assets_prefix),
+            )
+            .replace("__INDEX_DATA__", &index_data);
+        res.headers_mut()
+            .typed_insert(ContentLength(output.len() as u64));
+        res.headers_mut()
+            .typed_insert(CacheControl::new().with_no_cache());
         if head_only {
             return Ok(());
         }
@@ -1406,6 +1867,40 @@ impl Server {
         Some(self.args.serve_path.join(path))
     }
 
+    fn parse_zip_browse_path(&self, _req_path: &str, relative_path: &str) -> Option<ZipBrowsePath> {
+        let parts: Vec<&str> = relative_path.split('/').collect();
+        let mut zip_index = None;
+        for (idx, part) in parts.iter().enumerate() {
+            if self.is_zip_name(part) {
+                zip_index = Some(idx);
+                break;
+            }
+        }
+        let zip_index = zip_index?;
+        let zip_relative_path = parts[..=zip_index].join("/");
+        let inner_path = if zip_index + 1 < parts.len() {
+            parts[zip_index + 1..].join("/")
+        } else {
+            String::new()
+        };
+        Some(ZipBrowsePath {
+            zip_relative_path,
+            inner_path,
+        })
+    }
+
+    fn is_zip_name(&self, name: &str) -> bool {
+        let name = name.to_ascii_lowercase();
+        let ext = name.rsplit('.').next().unwrap_or("");
+        if ext.is_empty() || ext == name {
+            return false;
+        }
+        self.args
+            .zip_extensions
+            .iter()
+            .any(|v| v.trim_start_matches('.').eq_ignore_ascii_case(ext))
+    }
+
     async fn list_dir(
         &self,
         entry_path: &Path,
@@ -1508,9 +2003,13 @@ pub struct IndexData {
     pub allow_delete: bool,
     pub allow_search: bool,
     pub allow_archive: bool,
+    pub allow_zip_browse: bool,
+    pub zip_extensions: Vec<String>,
     pub dir_exists: bool,
     pub auth: bool,
     pub user: Option<String>,
+    pub zip_browsing: bool,
+    pub zip_file: Option<String>,
     pub paths: Vec<PathItem>,
 }
 
@@ -1647,12 +2146,72 @@ fn to_timestamp(time: &SystemTime) -> u64 {
         .as_millis() as u64
 }
 
+fn hash_assets(html: &[u8], css: &[u8], js: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(html);
+    hasher.update(css);
+    hasher.update(js);
+    format!("{:x}", hasher.finalize())
+}
+
 fn normalize_path<P: AsRef<Path>>(path: P) -> String {
     let path = path.as_ref().to_str().unwrap_or_default();
     if cfg!(windows) {
         path.replace('\\', "/")
     } else {
         path.to_string()
+    }
+}
+
+fn normalize_zip_inner_path(inner: &str) -> Option<String> {
+    if inner.is_empty() {
+        return Some(String::new());
+    }
+    let mut parts = Vec::new();
+    for part in inner.split('/') {
+        if part.is_empty() {
+            continue;
+        }
+        if part == "." || part == ".." {
+            return None;
+        }
+        parts.push(part);
+    }
+    Some(parts.join("/"))
+}
+
+fn normalize_zip_entry_name(name: &str) -> Option<String> {
+    let name = name.replace('\\', "/");
+    if name.starts_with('/') {
+        return None;
+    }
+    let mut parts = Vec::new();
+    let mut trailing_slash = false;
+    let total_parts = name.split('/').count();
+    for (idx, part) in name.split('/').enumerate() {
+        if part.is_empty() {
+            if idx == total_parts - 1 {
+                trailing_slash = true;
+                continue;
+            }
+            return None;
+        }
+        if part == "." || part == ".." {
+            return None;
+        }
+        parts.push(part);
+    }
+    let mut normalized = parts.join("/");
+    if trailing_slash {
+        normalized.push('/');
+    }
+    Some(normalized)
+}
+
+fn zip_datetime_to_timestamp(dt: &ZipDateTime) -> u64 {
+    match dt.as_chrono() {
+        LocalResult::Single(v) => v.timestamp_millis().max(0) as u64,
+        _ => 0,
     }
 }
 

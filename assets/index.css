@@ -49,6 +49,18 @@ body {
   padding: 0 0.25em;
 }
 
+.zip-indicator {
+  display: inline-block;
+  margin-left: 0.5em;
+  padding: 0.1em 0.4em;
+  font-size: 0.75em;
+  font-weight: 600;
+  color: #0b4f6c;
+  background-color: #e6f2f8;
+  border: 1px solid #b6d7e6;
+  border-radius: 0.4em;
+}
+
 .breadcrumb svg {
   height: 100%;
   fill: rgba(3, 47, 98, 0.5);
@@ -298,6 +310,12 @@ body {
 
   .paths-table tbody tr:hover {
     background-color: #1a1a1a;
+  }
+
+  .zip-indicator {
+    color: #cfe8f6;
+    background-color: #0c2430;
+    border-color: #1a3b4a;
   }
 
   .editor {

@@ -16,10 +16,14 @@
  * @property {boolean} allow_delete
  * @property {boolean} allow_search
  * @property {boolean} allow_archive
+ * @property {boolean} allow_zip_browse
+ * @property {string[]} zip_extensions
  * @property {boolean} auth
  * @property {string} user
  * @property {boolean} dir_exists
  * @property {string} editable
+ * @property {boolean} zip_browsing
+ * @property {string} zip_file
  */
 
 var DUFS_MAX_UPLOADINGS = 1;
@@ -133,8 +137,19 @@ async function ready() {
 
   addBreadcrumb(DATA.href, DATA.uri_prefix);
 
+  if (DATA.zip_browsing) {
+    const $breadcrumb = document.querySelector(".breadcrumb");
+    const zipLabel = encodedStr(DATA.zip_file || "ZIP");
+    $breadcrumb.insertAdjacentHTML(
+      "beforeend",
+      `<span class="zip-indicator" title="Browsing ${zipLabel}">ZIP</span>`
+    );
+    document.body.classList.add("zip-browsing");
+  }
+
   if (DATA.kind === "Index") {
-    document.title = `Index of ${DATA.href} - Dufs`;
+    const zipSuffix = DATA.zip_browsing ? " (zip)" : "";
+    document.title = `Index of ${DATA.href}${zipSuffix} - Dufs`;
     document.querySelector(".index-page").classList.remove("hidden");
 
     await setupIndexPage();
@@ -343,7 +358,7 @@ function addBreadcrumb(href, uri_prefix) {
 }
 
 async function setupIndexPage() {
-  if (DATA.allow_archive) {
+  if (DATA.allow_archive && !DATA.zip_browsing) {
     const $download = document.querySelector(".download");
     $download.href = baseUrl() + "?zip";
     $download.title = "Download folder as a .zip file";
@@ -443,24 +458,30 @@ function renderPathsTableBody() {
 function addPath(file, index) {
   const encodedName = encodedStr(file.name);
   let url = newUrl(file.name);
+  const zipExtensions = Array.isArray(DATA.zip_extensions) && DATA.zip_extensions.length > 0
+    ? DATA.zip_extensions.map(v => v.replace(/^\./, '').toLowerCase())
+    : ["zip"];
+  const isZip = DATA.allow_zip_browse && file.path_type.endsWith("File") && zipExtensions.includes(extName(file.name).slice(1).toLowerCase());
   let actionDelete = "";
   let actionDownload = "";
   let actionMove = "";
   let actionEdit = "";
   let actionView = "";
-  let isDir = file.path_type.endsWith("Dir");
+  let isDir = file.path_type.endsWith("Dir") || isZip;
+  const downloadUrl = url;
   if (isDir) {
     url += "/";
-    if (DATA.allow_archive) {
+    if (DATA.allow_archive && !isZip) {
       actionDownload = `
       <div class="action-btn">
         <a class="dlwt" href="${url}?zip" title="Download folder as a .zip file" download>${ICONS.download}</a>
       </div>`;
     }
-  } else {
+  }
+  if (!isDir || isZip) {
     actionDownload = `
     <div class="action-btn" >
-      <a class="dlwt" href="${url}" title="Download file" download>${ICONS.download}</a>
+      <a class="dlwt" href="${downloadUrl}" title="Download file" download>${ICONS.download}</a>
     </div>`;
   }
   if (DATA.allow_delete) {
@@ -490,7 +511,7 @@ function addPath(file, index) {
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
   <td class="path cell-icon">
-    ${getPathSvg(file.path_type)}
+    ${getPathSvg(isZip ? "Dir" : file.path_type)}
   </td>
   <td class="path cell-name">
     <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
