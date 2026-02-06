@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.46.0](https://github.com/jogotcha/dufs/compare/dufs-v0.45.0...dufs-v0.46.0) (2026-02-06)
+
+
+### Features
+
+* add filetype symbols ([3ea814c](https://github.com/jogotcha/dufs/commit/3ea814c8f2b7c2cef1627d51df9c22958710374f))
+* add filetype symbols to listings ([d47a748](https://github.com/jogotcha/dufs/commit/d47a748f796d9de4122fcb297453e25c2b3e4090))
+* add option --allow-hash to allow/disallow file hashing ([#657](https://github.com/jogotcha/dufs/issues/657)) ([2b2c7bd](https://github.com/jogotcha/dufs/commit/2b2c7bd5f718b0516d3a229e91ede5c0d2e32bb3))
+* zip browsing ([#1](https://github.com/jogotcha/dufs/issues/1)) ([c06598f](https://github.com/jogotcha/dufs/commit/c06598fd2a3bd7e66322c71676318c7baab00930))
+
+
+### Bug Fixes
+
+* ensure symlink inside serve root ([#670](https://github.com/jogotcha/dufs/issues/670)) ([a118c13](https://github.com/jogotcha/dufs/commit/a118c1348e07bf8312e2ea5b7edabd3b2dca0e11))
+* escape filename in ?simple output ([#669](https://github.com/jogotcha/dufs/issues/669)) ([db7a053](https://github.com/jogotcha/dufs/commit/db7a0530a29bbe3dd8105f1f469784d606f9cba5))
+* some search results missing due to broken symlinks ([#665](https://github.com/jogotcha/dufs/issues/665)) ([bc27c8c](https://github.com/jogotcha/dufs/commit/bc27c8c47948620d1deb43ae7740ec8fcb59655d))
+* update send_zip_edit to handle edit/view mode based on query parameters ([57b7744](https://github.com/jogotcha/dufs/commit/57b77444276a77f71832dbdf5b26e18c6f5c136b))
+
 ## [0.45.0] - 2025-09-03
 
 ### Bug Fixes
