@@ -64,6 +64,33 @@ const ICONS = {
   view: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zm0 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1"/></svg>`,
 }
 
+const FILETYPE_SYMBOLS = {
+  default: { symbol: "📄", label: "File" },
+  image: { symbol: "🖼️", label: "Image file" },
+  audio: { symbol: "🎵", label: "Audio file" },
+  video: { symbol: "🎬", label: "Video file" },
+  archive: { symbol: "📦", label: "Archive" },
+  code: { symbol: "💻", label: "Code file" },
+  text: { symbol: "📝", label: "Text file" },
+  pdf: { symbol: "📕", label: "PDF" },
+  font: { symbol: "🔤", label: "Font file" },
+  data: { symbol: "🗄️", label: "Data file" },
+  binary: { symbol: "⚙️", label: "Binary file" },
+};
+
+const FILETYPE_EXTENSION_SETS = {
+  image: new Set([".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".ico", ".tif", ".tiff"]),
+  audio: new Set([".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"]),
+  video: new Set([".mp4", ".mov", ".avi", ".wmv", ".flv", ".webm", ".mkv"]),
+  archive: new Set([".zip", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar"]),
+  code: new Set([".rs", ".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".java", ".c", ".cpp", ".h", ".hpp", ".cs", ".json", ".yaml", ".yml", ".toml", ".md", ".html", ".htm", ".css", ".scss", ".less", ".sh", ".bat", ".ps1", ".sql"]),
+  text: new Set([".txt", ".log", ".ini", ".conf", ".cfg", ".env"]),
+  pdf: new Set([".pdf"]),
+  font: new Set([".ttf", ".otf", ".woff", ".woff2"]),
+  data: new Set([".csv", ".tsv", ".xls", ".xlsx", ".parquet"]),
+  binary: new Set([".exe", ".msi", ".dll", ".bin"]),
+};
+
 /**
  * @type Map<string, Uploader>
  */
@@ -177,7 +204,7 @@ class Uploader {
     $uploadersTable.insertAdjacentHTML("beforeend", `
   <tr id="upload${idx}" class="uploader">
     <td class="path cell-icon">
-      ${getPathSvg()}
+        ${getPathIcon("File", name)}
     </td>
     <td class="path cell-name">
       <a href="${url}">${encodedName}</a>
@@ -490,7 +517,7 @@ function addPath(file, index) {
   $pathsTableBody.insertAdjacentHTML("beforeend", `
 <tr id="addPath${index}">
   <td class="path cell-icon">
-    ${getPathSvg(file.path_type)}
+    ${getPathIcon(file.path_type, file.name)}
   </td>
   <td class="path cell-name">
     <a href="${url}" ${isDir ? "" : `target="_blank"`}>${encodedName}</a>
@@ -885,7 +912,24 @@ function extName(filename) {
   return filename.substring(dotIndex);
 }
 
-function getPathSvg(path_type) {
+function pathBaseName(path) {
+  const parts = path.split("/").filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : path;
+}
+
+function getFileTypeSymbol(name) {
+  const base = pathBaseName(name);
+  const ext = extName(base).toLowerCase();
+  if (!ext) return FILETYPE_SYMBOLS.default;
+  for (const [key, set] of Object.entries(FILETYPE_EXTENSION_SETS)) {
+    if (set.has(ext)) {
+      return FILETYPE_SYMBOLS[key];
+    }
+  }
+  return FILETYPE_SYMBOLS.default;
+}
+
+function getPathIcon(path_type, name) {
   switch (path_type) {
     case "Dir":
       return ICONS.dir;
@@ -894,7 +938,8 @@ function getPathSvg(path_type) {
     case "SymlinkDir":
       return ICONS.symlinkDir;
     default:
-      return ICONS.file;
+      const fileType = getFileTypeSymbol(name || "");
+      return `<span class="filetype-symbol" title="${fileType.label}">${fileType.symbol}</span>`;
   }
 }
 
