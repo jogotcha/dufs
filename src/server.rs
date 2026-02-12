@@ -197,11 +197,17 @@ impl Server {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
-        let zip_browse = if self.args.allow_zip_browse {
+        let mut zip_browse = if self.args.allow_zip_browse {
             self.parse_zip_browse_path(req_path, &relative_path)
         } else {
             None
         };
+        if has_query_flag(&query_params, "download")
+            && let Some(zip_browse_path) = zip_browse.as_ref()
+            && zip_browse_path.inner_path.is_empty()
+        {
+            zip_browse = None;
+        }
 
         let auth_path = zip_browse
             .as_ref()
