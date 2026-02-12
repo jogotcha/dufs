@@ -1,6 +1,6 @@
 [package]
 name = "dufs"
-version = "0.46.0"
+version = "0.46.1"
 edition = "2024"
 description = "Dufs is a distinctive utility file server"
 license = "MIT OR Apache-2.0"
