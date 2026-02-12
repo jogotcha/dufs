@@ -5,7 +5,7 @@ use async_zip::{Compression, ZipEntryBuilder, tokio::write::ZipFileWriter};
 use fixtures::{Error, TestServer, server};
 use rstest::rstest;
 use sha2::{Digest, Sha256};
-use std::path::Path;
+use std::{fs, path::Path};
 use tokio::runtime::Runtime;
 
 fn write_zip(path: &Path, entries: Vec<(&str, &[u8])>) -> Result<(), Error> {
@@ -120,6 +120,22 @@ fn zip_extensions_allow_custom_formats(
         .collect();
 
     assert!(names.contains(&"folder".to_string()));
+    Ok(())
+}
+
+#[rstest]
+fn zip_download_returns_raw_file(
+    #[with(&["--allow-zip-browse"])] server: TestServer,
+) -> Result<(), Error> {
+    let zip_path = server.path().join("archive.zip");
+    write_zip(&zip_path, vec![("folder/note.txt", b"note")])?;
+
+    let url = format!("{}archive.zip?download", server.url());
+    let resp = reqwest::blocking::get(url)?;
+    assert_eq!(resp.status(), 200);
+    let body = resp.bytes()?;
+    let expected = fs::read(&zip_path)?;
+    assert_eq!(body.as_ref(), expected.as_slice());
     Ok(())
 }
 

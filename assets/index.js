@@ -563,7 +563,7 @@ function addPath(file, index) {
   let actionEdit = "";
   let actionView = "";
   let isDir = file.path_type.endsWith("Dir") || isZip;
-  const downloadUrl = url;
+  const downloadUrl = isZip ? `${url}?download` : url;
   if (isDir) {
     url += "/";
     if (DATA.allow_archive && !isZip) {
