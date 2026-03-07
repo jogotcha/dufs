@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.47.0](https://github.com/jogotcha/dufs/compare/dufs-v0.46.0...dufs-v0.47.0) (2026-03-07)
+
+
+### Features
+
+* expand archive browsing formats ([#11](https://github.com/jogotcha/dufs/issues/11)) ([abf9ccd](https://github.com/jogotcha/dufs/commit/abf9ccdd598845b1e8901e10da27367be4299f53))
+
+
+### Bug Fixes
+
+* download zip files when zip browse enabled ([#9](https://github.com/jogotcha/dufs/issues/9)) ([ab3023f](https://github.com/jogotcha/dufs/commit/ab3023f8a543b7feff112008c19e72dedc509eef))
+
 ## [0.46.0](https://github.com/jogotcha/dufs/compare/dufs-v0.45.0...dufs-v0.46.0) (2026-02-06)
 
 
